@@ -1,9 +1,11 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using Random = UnityEngine.Random;
 
 public class TheFlow : MonoBehaviour
 {
@@ -22,11 +24,17 @@ public class TheFlow : MonoBehaviour
    public GameObject countdownPanel;       // Parent GameObject for countdown (inactive by default)
    public Image fillImage;                 // Image with radial fill
    public TextMeshProUGUI countdownText;   // Centered countdown number
+   public TMP_Text quoteText;
+   public List<String> quotes = new List<String>();
 
    private int currentSlideIndex = 0;
    private Coroutine slideCoroutine;
    private float globalTimer = 0f;
    private bool countdownActive = false;
+   private bool handleSlideOn = false;
+   
+   private float startTime;
+   private float endTime;
    
    [HideInInspector]public bool isAnimEnd = false;
 
@@ -36,29 +44,38 @@ public class TheFlow : MonoBehaviour
       introPanel.SetActive(false);
       lights.SetActive(false);
       
+      if(countdownPanel != null)
+         countdownPanel.SetActive(false);
+      
       // Initialize slides
       for (int i = 0; i < slides.Length; i++)
       {
          slides[i].alpha = (i == 0) ? 1 : 0;
          slides[i].gameObject.SetActive(i == 0);
       }
-
-      if (countdownPanel != null)
-         countdownPanel.SetActive(false);
       
       StartCoroutine("SlidesRun");
    }
    
    void Update()
    {
-      globalTimer += Time.deltaTime;
+      if(!handleSlideOn) return;
+        
+         //Debug.Log(globalTimer);
 
-      // Trigger countdown every 50 seconds globally
-      if (!countdownActive && globalTimer >= 50f)
-      {
-         StartCoroutine(ShowCountdownCircular(10));
-         globalTimer = 0f;
-      }
+      if (durations[currentSlideIndex] > 10f)
+         //Proceed only when the current duration of the slide is more than 10 seconds.
+      
+         if (!countdownActive && Time.time>endTime-10f)
+         {
+            //Debug.Log("End " +endTime);
+            StartCoroutine(ShowCountdownCircular(10));
+         }
+
+         /*if (globalTimer >= 60f)
+         {
+            globalTimer = 0f;
+         }*/
 
       // Navigation input
       if (Input.GetKeyDown(KeyCode.DownArrow))
@@ -84,18 +101,24 @@ public class TheFlow : MonoBehaviour
       lights.SetActive(true);
       focusCamera.Priority = 2;
 
-      yield return new WaitForSeconds(3f);
+      yield return new WaitForSeconds(4f);
       
       introPanel.SetActive(true);
       LeanTween.moveX(introPanel, 0f, 3f).setEase(LeanTweenType.easeInOutQuart);
-      yield return new WaitForSeconds(50f);
       slideCoroutine = StartCoroutine(HandleSlide(currentSlideIndex));
    }
    
    IEnumerator HandleSlide(int index)
    {
-      float timer = 0f;
-      while (timer < durations[index])
+      handleSlideOn = true;
+      //float timer = 0f;
+      
+       startTime = Time.time;
+       //Debug.Log("Start Time: " +startTime);
+       endTime = startTime + durations[index];
+      
+      //while (timer < durations[index])
+      while(Time.time <= endTime)
       {
          // Slide skip input
          if (Input.GetKeyDown(KeyCode.DownArrow))
@@ -108,20 +131,27 @@ public class TheFlow : MonoBehaviour
             MoveToSlide(currentSlideIndex - 1);
             yield break;
          }
-
-         timer += Time.deltaTime;
+         
+         //Debug.Log("End Time: " +endTime);
+         //timer += Time.deltaTime;
          yield return null;
       }
 
+      //endTime = 0f;
+      //Debug.Log("End Time after loop: " +endTime);
+      
       // Auto advance
       MoveToSlide(currentSlideIndex + 1);
    }
    
    void MoveToSlide(int newIndex)
    {
+      handleSlideOn = false;
       if (newIndex < 0 || newIndex >= slides.Length) return;
       slideCoroutine = StartCoroutine(SlideTransition(currentSlideIndex, newIndex));
+      //slideStartTime = Time.time;
       currentSlideIndex = newIndex;
+      //Debug.Log("Current Slide Duration: " +durations[currentSlideIndex]);
    }
    
    IEnumerator SlideTransition(int from, int to)
@@ -156,19 +186,21 @@ public class TheFlow : MonoBehaviour
    
    IEnumerator ShowCountdownCircular(int seconds)
    {
+      countdownPanel.SetActive(true);
       countdownActive = true;
 
       // Move countdownPanel offscreen (to the right)
       RectTransform rect = countdownPanel.GetComponent<RectTransform>();
-      Vector2 onScreenPos = rect.anchoredPosition; // Target position (should be bottom-right)
-      Vector2 offScreenPos = onScreenPos + new Vector2(400f, 0f); // Slide in from 400px to the right
+      Vector2 onScreenPos = new Vector2(-283f, 85f); // Target position (should be bottom-right)
+      Vector2 offScreenPos = new Vector2(283f, 85f); // Slide in from 400px to the right
 
       // Immediately place it offscreen
       rect.anchoredPosition = offScreenPos;
 
       // Animate it into place
       LeanTween.move(rect, onScreenPos, 0.5f).setEaseOutExpo();
-
+      quoteText.text = quotes[Random.Range(0, quotes.Count)];
+      
       float duration = seconds;
       float elapsed = 0f;
 
